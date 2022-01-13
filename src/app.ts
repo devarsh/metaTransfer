@@ -16,11 +16,20 @@ async function run() {
       connectString: '10.55.6.62/RATNAFIN',
     });
 
+    const query =
+      "select (case when grade_tran_cd is not null then 'business' else 'credit' end) as view1 ,tran_cd, sr_cd, category, empl_cd, grid_form,new_form, edit_form, view_form " +
+      'from crm_los_product_form_metadata where ' +
+      'tran_cd > 4 ' +
+      //'and grid_form is not null ' +
+      "and category not in ('tabs') ";
+
+    console.log(query);
+
     const results = await connection.execute(
-      `select (case when grade_tran_cd is not null then 'business' else 'credit' end) as view1 ,tran_cd, sr_cd, category, empl_cd, new_form, edit_form, view_form from crm_los_product_form_metadata where category not in ('tabs')`,
+      query,
       []
-      // `select tran_cd, sr_cd, category, new_form, edit_form, view_form from crm_los_product_form_metadata where tran_cd = :tran_cd and sr_cd = :sr_cd and category = :category and emp_cd = :emp_cd category not in('tabs') and ${queryParam}`,
-      // [tran_cd, sr_cd, category, emp_cd] // bind value for :id
+      // `select (case when grade_tran_cd is not null then 'business' else 'credit' end) as view1 ,tran_cd, sr_cd, category, empl_cd, grid_form,new_form, edit_form, view_form from crm_los_product_form_metadata where category not in ('tabs') and tran_cd = :tran_cd and sr_cd = :sr_cd and category = :category `,
+      // [3, 1, 'applicant']
     );
     fs.mkdirSync(`./out/`, { recursive: true });
     let newForm, viewForm, editForm, trancd, srcd, category, emp_cd, view;
@@ -38,34 +47,13 @@ async function run() {
         let combinedOutput = metaDataDiffGenerator(newForm, viewForm, editForm);
         let fileoutput = JSON.stringify(combinedOutput, null, 2);
         fileoutput = `export const ${category}_${trancd}_${srcd}_${emp_cd ?? '00'}_${view} = ${fileoutput}`;
+        fileoutput = `${fileoutput}\n export default ${category}_${trancd}_${srcd}_${emp_cd ?? '00'}_${view}`;
         fs.writeFileSync(`./out/${trancd}-${srcd}-${category}-${emp_cd ?? '00'}-${view}.ts`, fileoutput);
       } catch (err) {
         console.error(err);
         fs.writeFileSync(`./out/${trancd}-${srcd}-${category}-${emp_cd ?? '00'}-${view}.ts`, `export const metaData = 'error'`);
       }
     }
-    let content: string = '';
-    let stmt: string = 'const mapper = {';
-
-    let fn: string = `export const getMetaData = ({tranCD,SRCD,category,empCD,view}) => {
-      return mapper[\`\${category}_\${tranCD}_\${SRCD}_\${empCD??'00'}_\${view}\`]
-    }`;
-
-    for (const result of results.rows) {
-      const trancd = result.TRAN_CD;
-      const srcd = result.SR_CD;
-      const category = result.CATEGORY;
-      const emp_cd = result.EMPL_CD;
-      content = `${content}\nimport {${category}_${trancd}_${srcd}_${
-        emp_cd ?? '00'
-      }_${view}} from './${trancd}-${srcd}-${category}-${emp_cd ?? '00'}-${view}'`;
-
-      stmt = `${stmt}\n'${category}_${trancd}_${srcd}_${emp_cd ?? '00'}_${view}':${category}_${trancd}_${srcd}_${
-        emp_cd ?? '00'
-      }_${view},`;
-    }
-    stmt = `${stmt}}`;
-    fs.writeFileSync(`./out/index.ts`, `${content}\n${stmt}\n${fn}`);
   } catch (err) {
     console.error(err);
   } finally {
